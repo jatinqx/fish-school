@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>The Confusion Effect</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);--bg:#e8f0fa;--ink:#14233b;--mut:#51627e;--card:#fff;--ln:#c9d6ea}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0a0f1d;--ink:#dbe6f7;--mut:#8da0bf;--card:#121a2e;--ln:#26324d}}
+:root[data-theme="dark"]{--bg:#0a0f1d;--ink:#dbe6f7;--mut:#8da0bf;--card:#121a2e;--ln:#26324d}
+*{box-sizing:border-box}html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.app{max-width:900px;margin:0 auto}
+#stage{position:relative;height:clamp(340px,58svh,780px);background:linear-gradient(#f5f9fd,#dbe9f7);overflow:hidden}
+#sim{position:absolute;inset:0;width:100%;height:100%}
+.top{padding:8px}
+.hd{background:#1a2236ee;border:1px solid #2c3858;border-radius:12px;padding:10px 14px;color:#fff}
+.k{color:#6ea0ff;font-weight:700;font-size:13px}
+.t{font:700 clamp(18px,4.8vw,28px)/1.15 Georgia,"Times New Roman",serif;margin:2px 0 6px}
+.s{color:#aab6cc;font-size:12px}
+#chip{background:var(--card);color:var(--ink);border:1px solid var(--ln);font:12px ui-monospace,Menlo,monospace;padding:5px 10px;border-radius:8px;margin-bottom:8px;text-align:center}
+.bot{width:min(100%,640px);margin:0 auto;padding:10px 8px 12px}
+#spark{display:block;width:100%;height:56px;background:#fff;border:1px solid #d5e0ee}
+.st{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:6px}
+.tl{background:#fff;border-top:3px solid #4b86d8;text-align:center;padding:4px 2px;color:#14233b;box-shadow:0 1px 4px #0002}
+.tl:first-child{border-top-color:#f0b429}
+.tl b{display:block;font:600 11px system-ui,sans-serif;letter-spacing:.04em;color:#44546f}
+.tl span{font:600 clamp(18px,5vw,28px) ui-monospace,Menlo,monospace}
+.ctl{background:#0b1020;color:#dbe6f7;padding:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.c{background:#131a2e;border-radius:8px;padding:8px 10px}
+.c label{font-size:12px;color:#c4cee0}
+.c output{display:block;color:#6ea0ff;font:600 15px ui-monospace,Menlo,monospace}
+.c input{width:100%;accent-color:#6ea0ff}
+.btns{grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap}
+button{background:#1f2a46;color:#dbe6f7;border:1px solid #33446b;border-radius:8px;padding:6px 12px;font:inherit;cursor:pointer}
+.cc{padding:20px 12px 28px}
+.cc h2{font:700 21px Georgia,serif;margin:0 0 4px}
+.cc>p{color:var(--mut);margin:0 0 12px;font-size:13px}
+.g{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:10px}
+.g div{background:var(--card);border:1px solid var(--ln);border-radius:10px;padding:12px}
+.g b{font-size:14px}.g p{margin:.35em 0 0;font-size:13px}
+.g .m{color:var(--mut)}.g .m i{font-style:normal;font-weight:700;color:#3b78d8}
+.ref{margin-top:12px;font-size:12px;color:var(--mut)}
+</style></head><body><div class="app">
+<div class="top"><div class="hd"><div class="k">The Confusion Effect</div><div class="t">Tracking Error ∝ Density × Visual Uniformity</div><div class="s">Overlapping paths force the visual tracking system to constantly reset.</div></div></div>
+<div id="stage"><canvas id="sim"></canvas></div>
+<div class="bot"><div id="chip">Scanning…</div><canvas id="spark"></canvas><div class="st"><div class="tl"><b>HIT RATE</b><span id="vh">0%</span></div><div class="tl"><b>SCHOOL</b><span id="vn">0</span></div><div class="tl"><b>SPREAD</b><span id="vs">0m</span></div><div class="tl"><b>STRIKES</b><span id="vk">0</span></div></div></div>
+<div class="ctl">
+<div class="c"><label for="coh">School Cohesion</label><output id="cohv">0.83</output><input id="coh" type="range" min="0" max="1" step=".01" value=".83"></div>
+<div class="c"><label for="esc">Escape Burst</label><output id="escv">0.85</output><input id="esc" type="range" min="0" max="1" step=".01" value=".85"></div>
+<div class="c"><label for="odd">Odd Ones Out</label><output id="oddv">0</output><input id="odd" type="range" min="0" max="12" step="1" value="0"></div>
+<div class="c"><label for="n">School Size</label><output id="nv">260</output><input id="n" type="range" min="40" max="600" step="10" value="260"></div>
+<div class="btns"><button id="pz">Pause</button><button id="ff">Speed ×1</button><button id="rs">Reset stats</button></div></div>
+</div>
+<script>
+const $=s=>document.querySelector(s),TAU=Math.PI*2,MAXN=600,PXM=6,R=70,R2=R*R,RS=12,V0=58,CELL=R,HL=160;
+const stage=$('#stage'),cv=$('#sim'),cx=cv.getContext('2d'),tr=document.createElement('canvas'),tx=tr.getContext('2d'),sp=$('#spark'),sc=sp.getContext('2d');
+const P={coh:.83,esc:.85,odd:0,n:260};
+const x=new Float32Array(MAXN),y=new Float32Array(MAXN),vx=new Float32Array(MAXN),vy=new Float32Array(MAXN),iso=new Float32Array(MAXN),bo=new Float32Array(MAXN).fill(1),od=new Uint8Array(MAXN);
+const nxt=new Int32Array(MAXN);
+let W=0,H=0,D=1,N=0,Gx=0,Gy=0,spread=0,head,cols=1,rows=1,strikes=0,log=[],hist=[],flashes=[],msg='',msgT=0,paused=false,ff=1,simT=0,lastS=0,lastUI=0;
+const hn={x:0,y:0,px:0,py:0,a:Math.PI,s:80,st:3,t:2,tg:-1,brk:0,lt:0,ld:0};
+function fit(){const r=stage.getBoundingClientRect();W=Math.max(300,r.width|0);H=Math.max(360,r.height|0);D=Math.min(2,devicePixelRatio||1);cv.width=W*D;cv.height=H*D;tr.width=W;tr.height=H;cols=Math.ceil(W/CELL)+1;rows=Math.ceil(H/CELL)+1;head=new Int32Array(cols*rows)}
+function spawn(i,a0,b0,rad){const a=Math.random()*TAU,r=Math.sqrt(Math.random())*rad,h=-.4+Math.random()*.3;x[i]=a0+Math.cos(a)*r;y[i]=b0+Math.sin(a)*r;vx[i]=Math.cos(h)*V0;vy[i]=Math.sin(h)*V0;bo[i]=1}
+function setOdd(k){for(let i=0;i<N;i++)od[i]=i<k?1:0}
+function setN(n){for(;N<n;N++)spawn(N,Gx||W*.35,Gy||H*.6,45);N=n;setOdd(P.odd)}
+function say(m){msg=m;msgT=performance.now()}
+function flash(a,b,c){flashes.push({x:a,y:b,c,t:performance.now()})}
+const wrap=a=>Math.atan2(Math.sin(a),Math.cos(a));
+function step(dt){
+ head.fill(-1);let sx=0,sy=0;
+ for(let i=0;i<N;i++){const c=Math.max(0,Math.min(cols-1,x[i]/CELL|0))+Math.max(0,Math.min(rows-1,y[i]/CELL|0))*cols;nxt[i]=head[c];head[c]=i;sx+=x[i];sy+=y[i]}
+ Gx=sx/N;Gy=sy/N;let sd=0;
+ const co=P.coh,wA=1.2+2.6*co,wC=(co-.22)*1.9,wG=Math.pow(Math.max(0,co-.12),2)*.75,nz=(1-co)*170,fe=380*(.4+P.esc);
+ for(let i=0;i<N;i++){
+  const cc=Math.max(0,Math.min(cols-1,x[i]/CELL|0)),cr=Math.max(0,Math.min(rows-1,y[i]/CELL|0));
+  let n=0,ax=0,ay=0,mx=0,my=0,px=0,py=0,nn=1e9;
+  for(let a=Math.max(0,cc-1);a<=Math.min(cols-1,cc+1);a++)for(let b=Math.max(0,cr-1);b<=Math.min(rows-1,cr+1);b++)for(let j=head[a+b*cols];j>=0;j=nxt[j]){
+   if(j===i)continue;const dx=x[j]-x[i],dy=y[j]-y[i],d2=dx*dx+dy*dy;if(d2>R2)continue;
+   const d=Math.sqrt(d2)+1e-3;if(d<nn)nn=d;n++;ax+=vx[j];ay+=vy[j];mx+=dx;my+=dy;
+   if(d<RS){const f=(RS-d)/RS/d;px-=dx*f;py-=dy*f}}
+  let fx=px*300,fy=py*300;
+  if(n){fx+=(ax/n-vx[i])*wA+mx/n*wC;fy+=(ay/n-vy[i])*wA+my/n*wC}
+  fx+=(Gx-x[i])*wG+(Math.random()-.5)*nz;fy+=(Gy-y[i])*wG+(Math.random()-.5)*nz;
+  const hx=x[i]-hn.x,hy=y[i]-hn.y,hd=Math.hypot(hx,hy)+.01;
+  if(hd<110){const f=1-hd/110;fx+=hx/hd*f*f*fe;fy+=hy/hd*f*f*fe}
+  const m=45;
+  if(x[i]<m)fx+=(m-x[i])*6;else if(x[i]>W-m)fx-=(x[i]-W+m)*6;
+  if(y[i]<m)fy+=(m-y[i])*6;else if(y[i]>H-m)fy-=(y[i]-H+m)*6;
+  vx[i]+=fx*dt;vy[i]+=fy*dt;
+  const s=Math.hypot(vx[i],vy[i])||1;bo[i]=1+(bo[i]-1)*Math.exp(-dt/.5);
+  const sv=.88+((i*37)%25)/100;let s2=s+(V0*sv*bo[i]-s)*Math.min(1,dt*2.5);s2=Math.max(22,s2);
+  vx[i]*=s2/s;vy[i]*=s2/s;x[i]+=vx[i]*dt;y[i]+=vy[i]*dt;iso[i]=nn;
+  sd+=(x[i]-Gx)*(x[i]-Gx)+(y[i]-Gy)*(y[i]-Gy)}
+ spread=Math.sqrt(sd/N)*2/PXM}
+function pick(){let b=-1,bs=-1e9;
+ for(let i=0;i<N;i++){const dx=x[i]-hn.x,dy=y[i]-hn.y,d=Math.hypot(dx,dy);if(d<35||d>320)continue;
+  if(Math.abs(wrap(Math.atan2(dy,dx)-hn.a))>1)continue;
+  const s=iso[i]-d*.06+(od[i]?90:0)+Math.random()*5;if(s>bs){bs=s;b=i}}
+ return b}
+function corridor(t){const dx=x[t]-hn.x,dy=y[t]-hn.y,d=Math.hypot(dx,dy)||1,ux=dx/d,uy=dy/d;let c=0;
+ for(let j=0;j<N;j++){if(j===t)continue;const rx=x[j]-hn.x,ry=y[j]-hn.y;if(Math.abs(rx*uy-ry*ux)<7&&Math.abs(rx*ux+ry*uy-d)<38)c++}
+ return c}
+function endPass(res){strikes++;log.push(res==='hit'?1:0);if(log.length>20)log.shift();hn.st=3;hn.t=1.6;hn.tg=-1;
+ say(res==='hit'?'Hit: one fish taken':res==='miss'?'Strike missed':'Pass wasted: 3 locks broken')}
+function eat(t){flash(x[t],y[t],'#f08a24');let j=(Math.random()*N)|0;if(j===t)j=(j+1)%N;
+ x[t]=x[j]+(Math.random()-.5)*24;y[t]=y[j]+(Math.random()-.5)*24;vx[t]=vx[j];vy[t]=vy[j];bo[t]=1}
+function startle(t){for(let i=0;i<N;i++)if(Math.hypot(x[i]-hn.x,y[i]-hn.y)<95)bo[i]=Math.max(bo[i],1+2.4*P.esc*.7);bo[t]=1+2.4*P.esc}
+function hunt(dt){
+ const h=hn;let sp=80,want=h.a;
+ if(h.st&&h.st<3&&(h.tg<0||h.tg>=N))h.st=0;
+ if(h.st===3){h.t-=dt;sp=70;want=h.a+Math.sin(performance.now()/500)*.5;if(h.t<=0)h.st=0}
+ else if(h.st===0){want=Math.atan2(Gy-h.y,Gx-h.x);sp=85;const t=pick();if(t>=0){h.st=1;h.tg=t;h.brk=0;h.lt=0;say('Locking target')}}
+ else{
+  const t=h.tg,dx=x[t]-h.x,dy=y[t]-h.y,d=Math.hypot(dx,dy),lead=h.st===2?.12:.25;
+  want=Math.atan2(dy+vy[t]*lead,dx+vx[t]*lead);
+  h.ld=corridor(t);
+  const haz=1.0*h.ld*(od[t]?.04:1)*(h.st===2?.5:1),broke=Math.random()<1-Math.exp(-haz*dt);
+  if(h.st===1){sp=105;
+   if(broke){h.brk++;h.lt=0;flash(x[t],y[t],'#e5484d');
+    if(h.brk>=3)endPass('wasted');else{const n=pick();if(n<0)endPass('wasted');else{h.tg=n;say('Lock broken '+h.brk+'/3')}}}
+   else{h.lt+=dt;if(h.lt>=.5&&d<130){h.st=2;h.t=.8;startle(t);say('Strike!')}else if(d<30)endPass('wasted')}}
+  else{sp=360;h.t-=dt;
+   if(broke){endPass('miss');flash(x[t],y[t],'#e5484d')}
+   else if(d<14){const ok=Math.random()<.97-.55*P.esc;endPass(ok?'hit':'miss');if(ok)eat(t);else flash(x[t],y[t],'#8a96ab')}
+   else if(h.t<=0)endPass('miss')}}
+ if(h.st!==1&&h.st!==2&&(h.x<50||h.x>W-50||h.y<50||h.y>H-50))want=Math.atan2(H/2-h.y,W/2-h.x);
+ h.a+=Math.max(-(h.st===2?9:3.6)*dt,Math.min((h.st===2?9:3.6)*dt,wrap(want-h.a)));
+ h.s+=(sp-h.s)*Math.min(1,dt*6);h.px=h.x;h.py=h.y;
+ h.x=Math.max(8,Math.min(W-8,h.x+Math.cos(h.a)*h.s*dt));h.y=Math.max(8,Math.min(H-8,h.y+Math.sin(h.a)*h.s*dt))}
+function fishPath(odd){cx.beginPath();
+ for(let i=0;i<N;i++){if(!!od[i]!==odd)continue;const s=Math.hypot(vx[i],vy[i])||1,c=vx[i]/s,sn=vy[i]/s,k=odd?1.25:1,rx=6.5*k,ry=2.5*k;
+  cx.moveTo(x[i]+c*rx,y[i]+sn*rx);cx.ellipse(x[i],y[i],rx,ry,Math.atan2(vy[i],vx[i]),0,TAU);
+  const bx=x[i]-c*rx*.8,by=y[i]-sn*rx*.8,tl=5.5*k,w=2.6*k;
+  cx.moveTo(bx,by);cx.lineTo(bx-c*tl-sn*w,by-sn*tl+c*w);cx.lineTo(bx-c*tl+sn*w,by-sn*tl-c*w);cx.closePath()}}
+function draw(now){
+ cx.setTransform(D,0,0,D,0,0);cx.clearRect(0,0,W,H);
+ tx.globalCompositeOperation='destination-out';tx.fillStyle='rgba(0,0,0,.018)';tx.fillRect(0,0,W,H);tx.globalCompositeOperation='source-over';
+ tx.strokeStyle='rgba(90,150,225,.07)';tx.lineWidth=2.2;tx.beginPath();
+ for(let i=0;i<N;i++){tx.moveTo(x[i]-vx[i]*.03,y[i]-vy[i]*.03);tx.lineTo(x[i],y[i])}tx.stroke();
+ tx.strokeStyle='rgba(70,85,105,.3)';tx.lineWidth=1.4;tx.beginPath();tx.moveTo(hn.px,hn.py);tx.lineTo(hn.x,hn.y);tx.stroke();
+ cx.globalAlpha=.34;cx.drawImage(tr,0,0,W,H);cx.globalAlpha=1;
+ if(hn.st===1||hn.st===2){const t=hn.tg;cx.lineCap='round';cx.strokeStyle='rgba(30,70,150,.13)';cx.lineWidth=14;cx.beginPath();cx.moveTo(hn.x,hn.y);cx.lineTo(x[t],y[t]);cx.stroke()}
+ fishPath(false);cx.fillStyle='rgba(52,110,200,.9)';cx.fill();
+ fishPath(true);cx.fillStyle='#f2a516';cx.fill();
+ cx.save();cx.translate(hn.x,hn.y);cx.rotate(hn.a);
+ cx.fillStyle='rgba(20,40,80,.16)';cx.beginPath();cx.ellipse(3,6,22,8,0,0,TAU);cx.fill();
+ cx.fillStyle='#10264a';cx.beginPath();cx.ellipse(0,0,22,8,0,0,TAU);cx.moveTo(-18,0);cx.lineTo(-33,-9);cx.lineTo(-33,9);cx.closePath();cx.fill();cx.restore();
+ if(hn.st===1||hn.st===2){const t=hn.tg;cx.strokeStyle=hn.st===2?'#e5484d':'#12356b';cx.lineWidth=1.6;cx.beginPath();cx.arc(x[t],y[t],11+Math.sin(now/90)*1.2,0,TAU);cx.stroke()}
+ flashes=flashes.filter(f=>now-f.t<700);
+ for(const f of flashes){const a=(now-f.t)/700;cx.globalAlpha=1-a;cx.strokeStyle=f.c;cx.lineWidth=2;cx.beginPath();cx.arc(f.x,f.y,8+a*34,0,TAU);cx.stroke()}
+ cx.globalAlpha=1}
+function spark(){
+ const w=sp.clientWidth,h=sp.clientHeight;if(!w)return;if(sp.width!==Math.round(w*D)){sp.width=Math.round(w*D);sp.height=Math.round(h*D)}
+ sc.setTransform(D,0,0,D,0,0);sc.clearRect(0,0,w,h);sc.strokeStyle='#e3e9f2';sc.lineWidth=1;sc.beginPath();sc.moveTo(0,h/2);sc.lineTo(w,h/2);sc.stroke();
+ sc.fillStyle='#8896ad';sc.font='10px system-ui,sans-serif';sc.fillText('hit rate · last 20 passes',6,11);
+ if(hist.length>1){sc.strokeStyle='#3b6fc4';sc.lineWidth=1.8;sc.beginPath();let lx=0,ly=0;
+  hist.forEach((v,i)=>{lx=i/(HL-1)*w;ly=h-4-v/100*(h-14);i?sc.lineTo(lx,ly):sc.moveTo(lx,ly)});sc.stroke();
+  sc.fillStyle='#f0b429';sc.beginPath();sc.arc(lx,ly,3,0,TAU);sc.fill()}}
+const rate=()=>log.length?Math.round(100*log.reduce((a,b)=>a+b,0)/log.length):0;
+function ui(now){
+ $('#vh').textContent=rate()+'%';$('#vn').textContent=N;$('#vs').textContent=spread.toFixed(1)+'m';$('#vk').textContent=strikes;
+ const live=hn.st>0&&hn.st<3,u=live&&od[hn.tg]?.04:1,ld=live?hn.ld:0;
+ $('#chip').textContent=(now-msgT<2200?msg:['Scanning for isolated prey','Locked','Striking','Recovering'][hn.st])+' · lookalikes in sight '+ld+' × uniformity '+u.toFixed(2)+' = error '+(ld*u).toFixed(1)}
+let last=performance.now();
+function loop(now){
+ const dt=Math.min(.033,(now-last)/1000);last=now;
+ if(!paused&&W)for(let k=0;k<ff;k++){step(dt);hunt(dt);simT+=dt;
+  if(simT-lastS>.5){lastS=simT;if(strikes){hist.push(rate());if(hist.length>HL)hist.shift()}}}
+ if(W)draw(now);
+ if(now-lastUI>120){lastUI=now;ui(now);spark()}
+ requestAnimationFrame(loop)}
+['coh','esc','odd','n'].forEach(k=>{const el=$('#'+k),o=$('#'+k+'v');
+ el.addEventListener('input',()=>{P[k]=+el.value;o.textContent=(k==='odd'||k==='n')?el.value:(+el.value).toFixed(2);if(k==='n')setN(P.n);if(k==='odd')setOdd(P.odd)})});
+$('#pz').onclick=e=>{paused=!paused;e.target.textContent=paused?'Resume':'Pause'};
+$('#ff').onclick=e=>{ff=ff===1?3:ff===3?6:1;e.target.textContent='Speed ×'+ff};
+$('#rs').onclick=()=>{strikes=0;log=[];hist=[];hn.st=3;hn.t=1}
+fit();new ResizeObserver(fit).observe(stage);
+hn.x=W*.7;hn.y=H*.3;setN(P.n);
+requestAnimationFrame(loop);
+</script></body></html>
